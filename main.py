@@ -69,7 +69,7 @@ if not burst:
     ttk = round((shots - 1) / (rpm / 60), 2)
 if burst:
     nBurst = math.ceil(shots / rpb) #number of bursts
-    leftover = remainder(shots, rpb)
+    leftover = math.remainder(shots, rpb)
     if leftover == 0:
         ttk = round((((nBurst - 1) * rpb) / rpm + (rpb - 1) / burstRPM) * 60, 3)
     else:
