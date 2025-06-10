@@ -33,7 +33,6 @@ handCannon = {
 pulseRifle = {
     adaptivePR,
     aggressiveBurstPR,
-    BxR,
     heavyBurstPR,
     highImpactPR,
     lightweightPR,
