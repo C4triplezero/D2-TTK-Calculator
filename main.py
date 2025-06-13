@@ -101,12 +101,17 @@ ctk.set_appearance_mode("dark")
 title = ctk.CTkLabel(window, text = "Select a Weapon", pady = 10, font = ("Roboto", 75)).pack()
 
 # images
-auto_rifle_img_light = Image.open("destiny2icons/blackicons/auto-rifle-black.png")
 auto_rifle_img_dark = Image.open("destiny2icons/whiteicons/auto-rifle-white.png")
 auto_rifle_img = ctk.CTkImage(dark_image = auto_rifle_img_dark, size = (128, 36))
 auto_rifle_img_ratio = 512 / 146
+scout_rifle_img_dark = Image.open("destiny2icons/whiteicons/scout-rifle-white.png")
+scout_rifle_img = ctk.CTkImage(dark_image = scout_rifle_img_dark, size = (128, 36))
+smg_img_dark = Image.open("destiny2icons/whiteicons/smg-white.png")
+smg_img = ctk.CTkImage(dark_image = smg_img_dark, size = (128, 64))
 adaptive_frame_dark = Image.open("destiny2icons/whiteicons/adaptive-frame-white.png")
 adaptive_frame_img = ctk.CTkImage(dark_image = adaptive_frame_dark, size = (64, 64))
+aggressive_frame_dark = Image.open("destiny2icons/whiteicons/aggressive-frame-white.png")
+aggressive_frame_img = ctk.CTkImage(dark_image = aggressive_frame_dark, size = (64, 64))
 high_impact_frame_dark = Image.open("destiny2icons/whiteicons/high-impact-frame-white.png")
 high_impact_frame_img = ctk.CTkImage(dark_image = high_impact_frame_dark, size = (64, 64))
 lightweight_frame_dark = Image.open("destiny2icons/whiteicons/lightweight-frame-white.png")
@@ -124,18 +129,40 @@ test_frame = ctk.CTkFrame(window)
 test_frame.place(relx = 0.5, rely = 0.25, relwidth = 0.8, relheight = 0.2, anchor = "center")
 test_frame.columnconfigure((0,1,2,3,4,5,6), weight = 1, uniform = "a")
 test_frame.rowconfigure(0, weight = 1, uniform = "a")
-test_button1_state = 0
+active_test_button = None
 def toggle_state(button):
-    global test_button1_state
-    if test_button1_state:
-        button.configure(border_width = 0)
-        layer2_frame.place_forget()
-        test_button1_state = 0
+    global active_test_button
+    if active_test_button:
+        if active_test_button == button:
+            button.configure(border_width = 0)
+            weapon_to_archetype[button].place_forget()
+            active_test_button = None
+        else:
+            active_test_button.configure(border_width = 0)
+            weapon_to_archetype[active_test_button].place_forget()
+            button.configure(border_width = 2)
+            weapon_to_archetype[button].place(relx = 0.5, rely = 0.45, relwidth = 0.6, relheight = 0.17, anchor = "center")
+            active_test_button = button
     else:
         button.configure(border_width = 2)
-        layer2_frame.place(relx = 0.5, rely = 0.45, relwidth = 0.6, relheight = 0.17, anchor = "center")
-        test_button1_state = 1
-test_button1 = ctk.CTkButton(test_frame, text = "\nAuto Rifle", image = auto_rifle_img, compound = "top", font = ("Roboto", 18), command = lambda: toggle_state(test_button1))
+        weapon_to_archetype[button].place(relx = 0.5, rely = 0.45, relwidth = 0.6, relheight = 0.17, anchor = "center")
+        active_test_button = button
+
+active_archetype = None
+def select_archetype(arch):
+    global active_archetype
+    if active_archetype:
+        if active_archetype == arch:
+            arch.configure(border_width = 0)
+            active_archetype = None
+        else:
+            active_archetype.configure(border_width = 0)
+            arch.configure(border_width = 2)
+            active_archetype = arch
+    else:
+        arch.configure(border_width = 2)
+        active_archetype = arch
+test_button1 = ctk.CTkButton(test_frame, text = "\nAuto Rifle", image = auto_rifle_img, compound = "top", font = ("Roboto", 16), command = lambda: toggle_state(test_button1))
 test_button1.grid(row = 0, column = 0, sticky = "nsew", padx = 5)
 test_button2 = ctk.CTkButton(test_frame, text = "tab 2", font = ("Roboto", 18))
 test_button2.grid(row = 0, column = 1, sticky = "nsew", padx = 5)
@@ -143,27 +170,52 @@ test_button3 = ctk.CTkButton(test_frame, text = "tab 3", font = ("Roboto", 18))
 test_button3.grid(row = 0, column = 2, sticky = "nsew", padx = 5)
 test_button4 = ctk.CTkButton(test_frame, text = "tab 4", font = ("Roboto", 18))
 test_button4.grid(row = 0, column = 3, sticky = "nsew", padx = 5)
-test_button5 = ctk.CTkButton(test_frame, text = "tab 5", font = ("Roboto", 18))
+test_button5 = ctk.CTkButton(test_frame, text = "\nScout Rifle", image = scout_rifle_img, compound = "top", font = ("Roboto", 16), command = lambda: toggle_state(test_button5))
 test_button5.grid(row = 0, column = 4, sticky = "nsew", padx = 5)
 test_button6 = ctk.CTkButton(test_frame, text = "tab 6", font = ("Roboto", 18))
 test_button6.grid(row = 0, column = 5, sticky = "nsew", padx = 5)
-test_button7 = ctk.CTkButton(test_frame, text = "tab 7", font = ("Roboto", 18))
+test_button7 = ctk.CTkButton(test_frame, text = "Submachine Gun", image = smg_img, compound = "top", font = ("Roboto", 16), command = lambda: toggle_state(test_button7))
 test_button7.grid(row = 0, column = 6, sticky = "nsew", padx = 5)
 
 # layer 2
-layer2_frame = ctk.CTkFrame(window)
-adaptive_frame_auto = ctk.CTkButton(layer2_frame, text = "Adaptive\nFrame", font = ("Roboto", 14), compound = "top", image = adaptive_frame_img, width = 110)
+# auto
+layer2_frame_auto = ctk.CTkFrame(window)
+adaptive_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Adaptive\nFrame", font = ("Roboto", 14), compound = "top", image = adaptive_frame_img, width = 110, command = lambda: select_archetype(adaptive_frame_auto))
 adaptive_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-high_impact_frame_auto = ctk.CTkButton(layer2_frame, text = "High-impact\nFrame", font = ("Roboto", 14), compound = "top", image = high_impact_frame_img, width = 110)
+high_impact_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "High-impact\nFrame", font = ("Roboto", 14), compound = "top", image = high_impact_frame_img, width = 110, command = lambda: select_archetype(high_impact_frame_auto))
 high_impact_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-lightweight_frame_auto = ctk.CTkButton(layer2_frame, text = "Lightweight\nFrame", font = ("Roboto", 14), compound = "top", image = lightweight_frame_img, width = 110)
+lightweight_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Lightweight\nFrame", font = ("Roboto", 14), compound = "top", image = lightweight_frame_img, width = 110, command = lambda: select_archetype(lightweight_frame_auto))
 lightweight_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-precision_frame_auto = ctk.CTkButton(layer2_frame, text = "Precision\nFrame", font = ("Roboto", 14), compound = "top", image = precision_frame_img, width = 110)
+precision_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Precision\nFrame", font = ("Roboto", 14), compound = "top", image = precision_frame_img, width = 110, command = lambda: select_archetype(precision_frame_auto))
 precision_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-rapid_fire_frame_auto = ctk.CTkButton(layer2_frame, text = "Rapid-fire\nFrame", font = ("Roboto", 14), compound = "top", image = rapid_fire_frame_img, width = 110)
+rapid_fire_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Rapid-fire\nFrame", font = ("Roboto", 14), compound = "top", image = rapid_fire_frame_img, width = 110, command = lambda: select_archetype(rapid_fire_frame_auto))
 rapid_fire_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-support_frame_auto = ctk.CTkButton(layer2_frame, text = "Support\nFrame", font = ("Roboto", 14), compound = "top", image = support_frame_img, width = 110)
+support_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Support\nFrame", font = ("Roboto", 14), compound = "top", image = support_frame_img, width = 110, command = lambda: select_archetype(support_frame_auto))
 support_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
+# scout
+layer2_frame_scout = ctk.CTkFrame(window)
+aggressive_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "Aggressive\nFrame", font = ("Roboto", 14), compound = "top", image = aggressive_frame_img, width = 110, command = lambda: select_archetype(aggressive_frame_scout))
+aggressive_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
+high_impact_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "High-impact\nFrame", font = ("Roboto", 14), compound = "top", image = high_impact_frame_img, width = 110, command = lambda: select_archetype(high_impact_frame_scout))
+high_impact_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
+lightweight_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "Lightweight\nFrame", font = ("Roboto", 14), compound = "top", image = lightweight_frame_img, width = 110, command = lambda: select_archetype(lightweight_frame_scout))
+lightweight_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
+precision_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "Precision\nFrame", font = ("Roboto", 14), compound = "top", image = precision_frame_img, width = 110, command = lambda: select_archetype(precision_frame_scout))
+precision_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
+rapid_fire_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "Rapid-fire\nFrame", font = ("Roboto", 14), compound = "top", image = rapid_fire_frame_img, width = 110, command = lambda: select_archetype(rapid_fire_frame_scout))
+rapid_fire_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
+# smg
+layer2_frame_smg = ctk.CTkFrame(window)
+adaptive_frame_smg = ctk.CTkButton(layer2_frame_smg, text = "Adaptive\nFrame", font = ("Roboto", 14), compound = "top", image = adaptive_frame_img, width = 110, command = lambda: select_archetype(adaptive_frame_smg))
+adaptive_frame_smg.pack(side = "left", expand = True, fill = "both", padx = 5)
+aggressive_frame_smg = ctk.CTkButton(layer2_frame_smg, text = "Aggressive\nFrame", font = ("Roboto", 14), compound = "top", image = aggressive_frame_img, width = 110, command = lambda: select_archetype(aggressive_frame_smg))
+aggressive_frame_smg.pack(side = "left", expand = True, fill = "both", padx = 5)
+lightweight_frame_smg = ctk.CTkButton(layer2_frame_smg, text = "Lightweight\nFrame", font = ("Roboto", 14), compound = "top", image = lightweight_frame_img, width = 110, command = lambda: select_archetype(lightweight_frame_smg))
+lightweight_frame_smg.pack(side = "left", expand = True, fill = "both", padx = 5)
+precision_frame_smg = ctk.CTkButton(layer2_frame_smg, text = "Precision\nFrame", font = ("Roboto", 14), compound = "top", image = precision_frame_img, width = 110, command = lambda: select_archetype(precision_frame_smg))
+precision_frame_smg.pack(side = "left", expand = True, fill = "both", padx = 5)
+
+weapon_to_archetype = {test_button1 : layer2_frame_auto, test_button5 : layer2_frame_scout, test_button7 : layer2_frame_smg}
 
 
 # layer 3

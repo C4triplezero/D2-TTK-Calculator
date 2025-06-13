@@ -26,7 +26,6 @@ handCannon = {
     adaptiveHC,
     agressiveHC,
     heavyBurstHC,
-    lightweightHC,
     precisionHC
 }
 
