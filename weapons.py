@@ -11,7 +11,6 @@ weapons = {
 autoRifle = {
     adaptiveAR,
     highImpactAR,
-    lightweightAR,
     precisionAR,
     rapidFireAR,
     supportAR,
