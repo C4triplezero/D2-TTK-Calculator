@@ -1,292 +1,618 @@
-import math
 import tkinter as tk
-#from tkinter import ttk
-import ttkbootstrap as ttk
 import customtkinter as ctk
+import math
 from PIL import Image, ImageTk
-surges = [1.0, 1.03, 1.045, 1.055, 1.06]
-health = 230
-headshot = 42.61
-bodyshot = 23.00
-rpm = 327.27
 
-burst = True #is burst weapon?
-rpb = 2 #rounds per burst
-burstRPM = 900
+class App(ctk.CTk):
+    def __init__(self, title, size):
+        # setup
+        super().__init__()
+        self.title(title)
+        ctk.set_appearance_mode("dark")
+        self.geometry(f"{size[0]}x{size[1]}")
+        self.minsize(size[0], size[1])
 
-pi_multi = 0.04167 #damage multiplier for Precision Instrument - 1
-epi_multi = 0.05 #damage multiplier for enhanced Precision Instrument - 1
-def calculate():
-    precision_instrument = bool(pi_num.get())
-    enhanced_pi = bool(epi_num.get())
-    if enhanced_pi:
-        multi = epi_multi
-    else:
-        multi = pi_multi
+        self.active_archetype = None # which weapon archetype button is currently selected, name can be pulled with .name
+        self.pi_num = ctk.IntVar(value = 0) # precision instrument enabled(1) or disabled(0)
+        self.epi_num = ctk.IntVar(value = 0) # enhanced(1) or not(0)
+        self.surges = ctk.IntVar(value = 0) # number of surges active
+        self.surge_values = [1.0, 1.03, 1.045, 1.055, 1.06] # multiplier value for each amount of surges(0-4)
+        self.multipliers = [] #list of all extra entries multipliers(max 7, default value of 1.0), values can be pull with .entry
 
-    extra_multi = 1.0 * surges[surge_var.get()]
-    for entry in multi_entries:
-        try:
-            extra_multi *= float(entry.get())
-        except:
-            print("Error: missing extra multiplier entry")
-    hsd = extra_multi * headshot
-    bsd = extra_multi * bodyshot
-    dmg = 0
+        self.weapon_banner = ctk.CTkLabel(self, text = "Select a Weapon", font = ("Roboto", 75))
+        self.weapon_banner.place(relx = 0.5, rely = 0.075, anchor = "center")
+        self.create_images()
+        self.create_dict()
+        self.weapon_select = WeaponSelect(self)
+        self.buff_bar = BuffBar(self)
+        self.calc_button = ctk.CTkButton(self, text = "Calculate", font = ("Roboto", 18), command = self.calculate)
+        self.calc_button.place(relx = 0.5, rely = 0.825, relwidth = 0.4, relheight = 0.05, anchor = "center")
+        self.result_text = ctk.CTkLabel(self, text = "", font = ("Roboto", 24))
+        self.result_text.place(relx = 0.5, rely = 0.925, anchor = "center")
+        self.info = ctk.CTkLabel(self, text = "Up to date with Destiny 2 version 8.2.6.4", font = ("Roboto", 12))
+        self.info.place(relx = 0.995, rely = 1, anchor = "se")
 
-    if not precision_instrument:
-        shots = 0
+        # run
+        self.mainloop()
 
-        while dmg <= health:
-            dmg += hsd
-            shots += 1
+    def create_images(self):
+        self.adaptive_frame_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/adaptive-frame-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/adaptive-frame-white.png"), size = (64, 64))
+        self.aggressive_frame_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/aggressive-frame-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/aggressive-frame-white.png"), size = (64, 64))
+        self.heavy_burst_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/heavy-burst-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/heavy-burst-white.png"), size = (64, 64))
+        self.high_impact_frame_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/high-impact-frame-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/high-impact-frame-white.png"), size = (64, 64))
+        self.lightweight_frame_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/lightweight-frame-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/lightweight-frame-white.png"), size = (64, 64))
+        self.precision_frame_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/precision-frame-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/precision-frame-white.png"), size = (64, 64))
+        self.rapid_fire_frame_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/rapid-fire-frame-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/rapid-fire-frame-white.png"), size = (64, 64))
+        self.support_frame_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/support-frame-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/support-frame-white.png"), size = (64, 64))
+        self.lightweight_frame_bow_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/lightweight-frame-bow-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/lightweight-frame-bow-white.png"), size = (64, 64))
+        self.precision_frame_bow_img = ctk.CTkImage(light_image = Image.open("destiny2icons/blackicons/precision-frame-bow-black.png"),
+                                               dark_image = Image.open(f"destiny2icons/whiteicons/precision-frame-bow-white.png"), size = (64, 64))
+        
+    def create_dict(self):
+        self.archetype_display = {"adaptiveframe" : ("Adaptive\nFrame", self.adaptive_frame_img),
+                              "aggressiveframe" : ("Aggressive\nFrame", self.aggressive_frame_img),
+                              "heavyburst" : ("Heavy\nBurst", self.heavy_burst_img),
+                              "highimpactframe": ("High-Impact\nFrame", self.high_impact_frame_img),
+                              "lightweightframe" : ("Lightweight\nFrame", self.lightweight_frame_img),
+                              "precisionframe" : ("Precision\nFrame", self.precision_frame_img),
+                              "rapidfireframe" : ("Rapid-Fire\nFrame", self.rapid_fire_frame_img),
+                              "supportframe" : ("Support\nFrame", self.support_frame_img),
+                              "lightweightbow" : ("Lightweight\nFrame", self.lightweight_frame_bow_img),
+                              "precisionbow" : ("Precision\nFrame", self.precision_frame_bow_img),
+                              "adaptiveburst" : ("Adaptive\nBurst", self.adaptive_frame_img)}
+        
+        self.archetype_damage_profiles = {
+            "adaptiveframeautorifle" : {
+                "headshot damage" : 26.335,
+                "bodyshot damage" : 15.007,
+                "rounds per minute" : 600.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "highimpactframeautorifle" : {
+                "headshot damage" : 43.052,
+                "bodyshot damage" : 23.996,
+                "rounds per minute" : 360.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "precisionframeautorifle" : {
+                "headshot damage" : 33.916,
+                "bodyshot damage" : 19.997,
+                "rounds per minute" : 450.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "rapidfireframeautorifle" : {
+                "headshot damage" : 23.069,
+                "bodyshot damage" : 13.601,
+                "rounds per minute" : 720.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "supportframeautorifle" : {
+                "headshot damage" : 26.408,
+                "bodyshot damage" : 18.837,
+                "rounds per minute" : 600.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "lightweightbowbow" : {
+                "headshot damage" : 123.945,
+                "bodyshot damage" : 77.561,
+                "rounds per minute" : 60000 / (500 + 100 + 580), # this is miliseconds in a minute / (fastest reload in ms + constant nock delay in ms + draw time)
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "precisionbowbow" : {
+                "headshot damage" : 131.355,
+                "bodyshot damage" : 100.738,
+                "rounds per minute" : 60000 / (500 + 100 + 684), # this is miliseconds in a minute / (fastest reload in ms + constant nock delay in ms + draw time)
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "adaptiveframehandcannon" : {
+                "headshot damage" : 79.845,
+                "bodyshot damage" : 44.504,
+                "rounds per minute" : 138.5,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "aggressiveframehandcannon" : {
+                "headshot damage" : 90.806,
+                "bodyshot damage" : 49.006,
+                "rounds per minute" : 120.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "heavybursthandcannon" : {
+                "headshot damage" : 52.809,
+                "bodyshot damage" : 23.996,
+                "rounds per minute" : 257.1,
+                "is burst weapon?" : True,
+                "rounds per burst" : 2,
+                "rpm mid burst" : 600.0
+            },
+            "precisionframehandcannon" : {
+                "headshot damage" : 70.608,
+                "bodyshot damage" : 45.296,
+                "rounds per minute" : 180.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "adaptiveframepulserifle" : {
+                "headshot damage" : 36.446,
+                "bodyshot damage" : 21.997,
+                "rounds per minute" : 385.7,
+                "is burst weapon?" : True,
+                "rounds per burst" : 3,
+                "rpm mid burst" : 900.0
+            },
+            "aggressiveframepulserifle" : {
+                "headshot damage" : 30.231,
+                "bodyshot damage" : 15.495,
+                "rounds per minute" : 450.0,
+                "is burst weapon?" : True,
+                "rounds per burst" : 4,
+                "rpm mid burst" : 900.0
+            },
+            "heavyburstpulserifle" : {
+                "headshot damage" : 42.623,
+                "bodyshot damage" : 23.003,
+                "rounds per minute" : 327.3,
+                "is burst weapon?" : True,
+                "rounds per burst" : 2,
+                "rpm mid burst" : 900.0
+            },
+            "highimpactframepulserifle" : {
+                "headshot damage" : 38.557,
+                "bodyshot damage" : 21.491,
+                "rounds per minute" : 337.5,
+                "is burst weapon?" : True,
+                "rounds per burst" : 3,
+                "rpm mid burst" : 900.0
+            },
+            "lightweightframepulserifle" : {
+                "headshot damage" : 31.491,
+                "bodyshot damage" : 19.706,
+                "rounds per minute" : 450.0,
+                "is burst weapon?" : True,
+                "rounds per burst" : 3,
+                "rpm mid burst" : 900.0
+            },
+            "rapidfireframepulserifle" : {
+                "headshot damage" : 27.809,
+                "bodyshot damage" : 15.008,
+                "rounds per minute" : 540.0,
+                "is burst weapon?" : True,
+                "rounds per burst" : 3,
+                "rpm mid burst" : 900.0
+            },
+            "aggressiveframescoutrifle" : {
+                "headshot damage" : 91.580,
+                "bodyshot damage" : 53.995,
+                "rounds per minute" : 120.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "highimpactframescoutrifle" : {
+                "headshot damage" : 84.416,
+                "bodyshot damage" : 42.002,
+                "rounds per minute" : 150.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "lightweightframescoutrifle" : {
+                "headshot damage" : 64.455,
+                "bodyshot damage" : 38.003,
+                "rounds per minute" : 200.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "precisionframescoutrifle" : {
+                "headshot damage" : 69.085,
+                "bodyshot damage" : 38.507,
+                "rounds per minute" : 180.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "rapidfireframescoutrifle" : {
+                "headshot damage" : 54.617,
+                "bodyshot damage" : 27.995,
+                "rounds per minute" : 257.1,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "adaptiveframesidearm" : {
+                "headshot damage" : 57.535,
+                "bodyshot damage" : 36.003,
+                "rounds per minute" : 300.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "adaptiveburstsidearm" : {
+                "headshot damage" : 37.052,
+                "bodyshot damage" : 19.996,
+                "rounds per minute" : 490.9,
+                "is burst weapon?" : True,
+                "rounds per burst" : 3,
+                "rpm mid burst" : 900.0
+            },
+            "heavyburstsidearm" : {
+                "headshot damage" : 52.731,
+                "bodyshot damage" : 32.997,
+                "rounds per minute" : 327.3,
+                "is burst weapon?" : True,
+                "rounds per burst" : 2,
+                "rpm mid burst" : 600.0
+            },
+            "lightweightframesidearm" : {
+                "headshot damage" : 49.537,
+                "bodyshot damage" : 30.999,
+                "rounds per minute" : 360.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "precisionframesidearm" : {
+                "headshot damage" : 63.928,
+                "bodyshot damage" : 40.004,
+                "rounds per minute" : 257.1,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "rapidfireframesidearm" : {
+                "headshot damage" : 39.952,
+                "bodyshot damage" : 25.001,
+                "rounds per minute" : 450.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "adaptiveframesmg" : {
+                "headshot damage" : 19.047,
+                "bodyshot damage" : 11.496,
+                "rounds per minute" : 900.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "aggressiveframesmg" : {
+                "headshot damage" : 23.872,
+                "bodyshot damage" : 13.603,
+                "rounds per minute" : 720.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "lightweightframesmg" : {
+                "headshot damage" : 20.050,
+                "bodyshot damage" : 10.596,
+                "rounds per minute" : 900.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            "precisionframesmg" : {
+                "headshot damage" : 26.687,
+                "bodyshot damage" : 16.700,
+                "rounds per minute" : 600.0,
+                "is burst weapon?" : False,
+                "rounds per burst" : 1,
+                "rpm mid burst" : 1
+            },
+            }
 
-        headshots = shots
-        bodyshots = 0
-
-        while dmg > health:
-            dmg = dmg + bsd - hsd
-            headshots -= 1
-            bodyshots += 1
-
-        headshots += 1
-        bodyshots -= 1
-
-    else:
-        shots = 0
-        pi_count = 0
-
-        while dmg <= health:
-            if pi_count == 0:
-                dmg += hsd
+    def select_archetype(self, arch):
+        if self.active_archetype:
+            if self.active_archetype == arch:
+                arch.configure(border_width = 0)
+                self.active_archetype = None
             else:
-                dmg += hsd * (1 + multi * pi_count)
-            shots += 1
-            pi_count += 1
-
-        headshots = shots
-        bodyshots = 0
-        pi_count = 0
-
-        while dmg > health:
-            if pi_count == 0:
-                dmg = dmg + bsd - hsd
-            else:
-                dmg = dmg + bsd - (hsd * (1 + multi * pi_count))
-
-            headshots -= 1
-            bodyshots += 1
-            pi_count += 1
-
-        headshots += 1
-        bodyshots -= 1
-    if not burst:
-        timetokill = round((shots - 1) / (rpm / 60), 2)
-    if burst:
-        nBurst = math.ceil(shots / rpb) #number of bursts
-        leftover = math.remainder(shots, rpb)
-        if leftover == 0:
-            timetokill = round((((nBurst - 1) * rpb) / rpm + (rpb - 1) / burstRPM) * 60, 3)
+                self.active_archetype.configure(border_width = 0)
+                arch.configure(border_width = 2)
+                self.active_archetype = arch
         else:
-            timetokill = round((((nBurst - 1) * rpb) / rpm + (leftover - 1) / burstRPM) * 60, 3)
-    result_text.configure(text = f"It would take {timetokill} seconds to kill in {headshots} headshots and {bodyshots} bodyshots")
-
-# window
-window = ctk.CTk()
-window.title("D2 TTK Calculator")
-window.geometry("1280x720")
-ctk.set_appearance_mode("dark")
-
-# title
-title = ctk.CTkLabel(window, text = "Select a Weapon", pady = 10, font = ("Roboto", 75)).pack()
-
-# images
-auto_rifle_img_dark = Image.open("destiny2icons/whiteicons/auto-rifle-white.png")
-auto_rifle_img = ctk.CTkImage(dark_image = auto_rifle_img_dark, size = (128, 36))
-auto_rifle_img_ratio = 512 / 146
-scout_rifle_img_dark = Image.open("destiny2icons/whiteicons/scout-rifle-white.png")
-scout_rifle_img = ctk.CTkImage(dark_image = scout_rifle_img_dark, size = (128, 36))
-smg_img_dark = Image.open("destiny2icons/whiteicons/smg-white.png")
-smg_img = ctk.CTkImage(dark_image = smg_img_dark, size = (128, 64))
-adaptive_frame_dark = Image.open("destiny2icons/whiteicons/adaptive-frame-white.png")
-adaptive_frame_img = ctk.CTkImage(dark_image = adaptive_frame_dark, size = (64, 64))
-aggressive_frame_dark = Image.open("destiny2icons/whiteicons/aggressive-frame-white.png")
-aggressive_frame_img = ctk.CTkImage(dark_image = aggressive_frame_dark, size = (64, 64))
-high_impact_frame_dark = Image.open("destiny2icons/whiteicons/high-impact-frame-white.png")
-high_impact_frame_img = ctk.CTkImage(dark_image = high_impact_frame_dark, size = (64, 64))
-lightweight_frame_dark = Image.open("destiny2icons/whiteicons/lightweight-frame-white.png")
-lightweight_frame_img = ctk.CTkImage(dark_image = lightweight_frame_dark, size = (64, 64))
-precision_frame_dark = Image.open("destiny2icons/whiteicons/precision-frame-white.png")
-precision_frame_img = ctk.CTkImage(dark_image = precision_frame_dark, size = (64, 64))
-rapid_fire_frame_dark = Image.open("destiny2icons/whiteicons/rapid-fire-frame-white.png")
-rapid_fire_frame_img = ctk.CTkImage(dark_image = rapid_fire_frame_dark, size = (64, 64))
-support_frame_dark = Image.open("destiny2icons/whiteicons/support-frame-white.png")
-support_frame_img = ctk.CTkImage(dark_image = support_frame_dark, size = (64, 64))
-
-# testing
-test_var = ctk.StringVar(value = "option 1")
-test_frame = ctk.CTkFrame(window)
-test_frame.place(relx = 0.5, rely = 0.25, relwidth = 0.8, relheight = 0.2, anchor = "center")
-test_frame.columnconfigure((0,1,2,3,4,5,6), weight = 1, uniform = "a")
-test_frame.rowconfigure(0, weight = 1, uniform = "a")
-active_test_button = None
-def toggle_state(button):
-    global active_test_button
-    if active_test_button:
-        if active_test_button == button:
-            button.configure(border_width = 0)
-            weapon_to_archetype[button].place_forget()
-            active_test_button = None
-        else:
-            active_test_button.configure(border_width = 0)
-            weapon_to_archetype[active_test_button].place_forget()
-            button.configure(border_width = 2)
-            weapon_to_archetype[button].place(relx = 0.5, rely = 0.45, relwidth = 0.6, relheight = 0.17, anchor = "center")
-            active_test_button = button
-    else:
-        button.configure(border_width = 2)
-        weapon_to_archetype[button].place(relx = 0.5, rely = 0.45, relwidth = 0.6, relheight = 0.17, anchor = "center")
-        active_test_button = button
-
-active_archetype = None
-def select_archetype(arch):
-    global active_archetype
-    if active_archetype:
-        if active_archetype == arch:
-            arch.configure(border_width = 0)
-            active_archetype = None
-        else:
-            active_archetype.configure(border_width = 0)
             arch.configure(border_width = 2)
-            active_archetype = arch
-    else:
-        arch.configure(border_width = 2)
-        active_archetype = arch
-test_button1 = ctk.CTkButton(test_frame, text = "\nAuto Rifle", image = auto_rifle_img, compound = "top", font = ("Roboto", 16), command = lambda: toggle_state(test_button1))
-test_button1.grid(row = 0, column = 0, sticky = "nsew", padx = 5)
-test_button2 = ctk.CTkButton(test_frame, text = "tab 2", font = ("Roboto", 18))
-test_button2.grid(row = 0, column = 1, sticky = "nsew", padx = 5)
-test_button3 = ctk.CTkButton(test_frame, text = "tab 3", font = ("Roboto", 18))
-test_button3.grid(row = 0, column = 2, sticky = "nsew", padx = 5)
-test_button4 = ctk.CTkButton(test_frame, text = "tab 4", font = ("Roboto", 18))
-test_button4.grid(row = 0, column = 3, sticky = "nsew", padx = 5)
-test_button5 = ctk.CTkButton(test_frame, text = "\nScout Rifle", image = scout_rifle_img, compound = "top", font = ("Roboto", 16), command = lambda: toggle_state(test_button5))
-test_button5.grid(row = 0, column = 4, sticky = "nsew", padx = 5)
-test_button6 = ctk.CTkButton(test_frame, text = "tab 6", font = ("Roboto", 18))
-test_button6.grid(row = 0, column = 5, sticky = "nsew", padx = 5)
-test_button7 = ctk.CTkButton(test_frame, text = "Submachine Gun", image = smg_img, compound = "top", font = ("Roboto", 16), command = lambda: toggle_state(test_button7))
-test_button7.grid(row = 0, column = 6, sticky = "nsew", padx = 5)
+            self.active_archetype = arch
 
-# layer 2
-# auto
-layer2_frame_auto = ctk.CTkFrame(window)
-adaptive_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Adaptive\nFrame", font = ("Roboto", 14), compound = "top", image = adaptive_frame_img, width = 110, command = lambda: select_archetype(adaptive_frame_auto))
-adaptive_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-high_impact_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "High-impact\nFrame", font = ("Roboto", 14), compound = "top", image = high_impact_frame_img, width = 110, command = lambda: select_archetype(high_impact_frame_auto))
-high_impact_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-lightweight_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Lightweight\nFrame", font = ("Roboto", 14), compound = "top", image = lightweight_frame_img, width = 110, command = lambda: select_archetype(lightweight_frame_auto))
-lightweight_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-precision_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Precision\nFrame", font = ("Roboto", 14), compound = "top", image = precision_frame_img, width = 110, command = lambda: select_archetype(precision_frame_auto))
-precision_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-rapid_fire_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Rapid-fire\nFrame", font = ("Roboto", 14), compound = "top", image = rapid_fire_frame_img, width = 110, command = lambda: select_archetype(rapid_fire_frame_auto))
-rapid_fire_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-support_frame_auto = ctk.CTkButton(layer2_frame_auto, text = "Support\nFrame", font = ("Roboto", 14), compound = "top", image = support_frame_img, width = 110, command = lambda: select_archetype(support_frame_auto))
-support_frame_auto.pack(side = "left", expand = True, fill = "both", padx = 5)
-# scout
-layer2_frame_scout = ctk.CTkFrame(window)
-aggressive_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "Aggressive\nFrame", font = ("Roboto", 14), compound = "top", image = aggressive_frame_img, width = 110, command = lambda: select_archetype(aggressive_frame_scout))
-aggressive_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
-high_impact_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "High-impact\nFrame", font = ("Roboto", 14), compound = "top", image = high_impact_frame_img, width = 110, command = lambda: select_archetype(high_impact_frame_scout))
-high_impact_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
-lightweight_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "Lightweight\nFrame", font = ("Roboto", 14), compound = "top", image = lightweight_frame_img, width = 110, command = lambda: select_archetype(lightweight_frame_scout))
-lightweight_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
-precision_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "Precision\nFrame", font = ("Roboto", 14), compound = "top", image = precision_frame_img, width = 110, command = lambda: select_archetype(precision_frame_scout))
-precision_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
-rapid_fire_frame_scout = ctk.CTkButton(layer2_frame_scout, text = "Rapid-fire\nFrame", font = ("Roboto", 14), compound = "top", image = rapid_fire_frame_img, width = 110, command = lambda: select_archetype(rapid_fire_frame_scout))
-rapid_fire_frame_scout.pack(side = "left", expand = True, fill = "both", padx = 5)
-# smg
-layer2_frame_smg = ctk.CTkFrame(window)
-adaptive_frame_smg = ctk.CTkButton(layer2_frame_smg, text = "Adaptive\nFrame", font = ("Roboto", 14), compound = "top", image = adaptive_frame_img, width = 110, command = lambda: select_archetype(adaptive_frame_smg))
-adaptive_frame_smg.pack(side = "left", expand = True, fill = "both", padx = 5)
-aggressive_frame_smg = ctk.CTkButton(layer2_frame_smg, text = "Aggressive\nFrame", font = ("Roboto", 14), compound = "top", image = aggressive_frame_img, width = 110, command = lambda: select_archetype(aggressive_frame_smg))
-aggressive_frame_smg.pack(side = "left", expand = True, fill = "both", padx = 5)
-lightweight_frame_smg = ctk.CTkButton(layer2_frame_smg, text = "Lightweight\nFrame", font = ("Roboto", 14), compound = "top", image = lightweight_frame_img, width = 110, command = lambda: select_archetype(lightweight_frame_smg))
-lightweight_frame_smg.pack(side = "left", expand = True, fill = "both", padx = 5)
-precision_frame_smg = ctk.CTkButton(layer2_frame_smg, text = "Precision\nFrame", font = ("Roboto", 14), compound = "top", image = precision_frame_img, width = 110, command = lambda: select_archetype(precision_frame_smg))
-precision_frame_smg.pack(side = "left", expand = True, fill = "both", padx = 5)
+    def calculate(self):
+        health = 230
+        pi_multi = 0.04167 #damage multiplier for Precision Instrument - 1
+        epi_multi = 0.05 #damage multiplier for enhanced Precision Instrument - 1
+        precision_instrument = bool(self.pi_num.get())
+        enhanced_pi = bool(self.epi_num.get())
 
-weapon_to_archetype = {test_button1 : layer2_frame_auto, test_button5 : layer2_frame_scout, test_button7 : layer2_frame_smg}
+        try:
+            damage_profile = self.archetype_damage_profiles[self.active_archetype.name]
+        except:
+            self.result_text.configure(text = f"Please Select a Weapon Type")
+            return
+
+        headshot = damage_profile["headshot damage"]
+        bodyshot = damage_profile["bodyshot damage"]
+        rpm = damage_profile["rounds per minute"]
+
+        burst = damage_profile["is burst weapon?"]
+        rpb = damage_profile["rounds per burst"]
+        burstRPM = damage_profile["rpm mid burst"]
+
+        if enhanced_pi:
+            multi = epi_multi
+        else:
+            multi = pi_multi
+
+        extra_multi = 1.0 * self.surge_values[self.surges.get()]
+        for entry in self.multipliers:
+            try:
+                extra_multi *= float(entry.entry.get())
+            except:
+                print("Error: missing extra multiplier entry")
+        hsd = extra_multi * headshot
+        bsd = extra_multi * bodyshot
+        dmg = 0
+
+        if not precision_instrument:
+            shots = 0
+
+            while dmg <= health:
+                dmg += hsd
+                shots += 1
+
+            headshots = shots
+            bodyshots = 0
+
+            while dmg > health:
+                dmg = dmg + bsd - hsd
+                headshots -= 1
+                bodyshots += 1
+
+            headshots += 1
+            bodyshots -= 1
+
+        else:
+            shots = 0
+            pi_count = 0
+
+            while dmg <= health:
+                if pi_count == 0:
+                    dmg += hsd
+                else:
+                    dmg += hsd * (1 + multi * pi_count)
+                shots += 1
+                pi_count += 1
+
+            headshots = shots
+            bodyshots = 0
+            pi_count = 0
+
+            while dmg > health:
+                if pi_count == 0:
+                    dmg = dmg + bsd - hsd
+                else:
+                    dmg = dmg + bsd - (hsd * (1 + multi * pi_count))
+
+                headshots -= 1
+                bodyshots += 1
+                pi_count += 1
+
+            headshots += 1
+            bodyshots -= 1
+        if not burst:
+            timetokill = round((shots - 1) / (rpm / 60), 3)
+        if burst:
+            nBurst = math.ceil(shots / rpb) #number of bursts
+            leftover = shots % rpb
+            if leftover == 0:
+                timetokill = round((((nBurst - 1) * rpb) / rpm + (rpb - 1) / burstRPM) * 60, 3)
+            else:
+                timetokill = round((((nBurst - 1) * rpb) / rpm + (leftover - 1) / burstRPM) * 60, 3)
+        self.result_text.configure(text = f"It would take {timetokill} seconds to kill in {headshots} headshots and {bodyshots} bodyshots")
+
+class WeaponSelect(ctk.CTkFrame):
+    def __init__(self, master,**kwargs):
+        self.master = master
+        self.active_test_button = None
+        super().__init__(self.master, **kwargs)
+        self.columnconfigure(tuple(range(7)), weight = 1, uniform = "a")
+        self.rowconfigure(0, weight = 1, uniform = "a")
+        self.create_buttons()
+        self.place_buttons()
+        self.place(relx = 0.5, rely = 0.25, relwidth = 0.8, relheight = 0.2, anchor = "center")
+
+    def create_buttons(self):
+        self.auto_rifle_archetypes_list = ["adaptiveframe", "highimpactframe", "precisionframe", "rapidfireframe", "supportframe"]
+        self.auto_rifle = WeaponButton(self, image_type = "auto-rifle", text = "\n\nAuto Rifle", dimensions = (128, 36), list = self.auto_rifle_archetypes_list)
+        self.bow_archetypes_list = ["lightweightbow", "precisionbow"]
+        self.bow = WeaponButton(self, image_type = "bow", text = "\n\nBow", dimensions = (128, 42), list = self.bow_archetypes_list)
+        self.hand_cannon_archetypes_list = ["adaptiveframe", "aggressiveframe", "heavyburst", "precisionframe"]
+        self.hand_cannon = WeaponButton(self, image_type = "hand-cannon", text = "\nHand Cannon", dimensions = (128, 64), list = self.hand_cannon_archetypes_list)
+        self.pulse_rifle_archetypes_list = ["adaptiveframe", "aggressiveframe", "heavyburst", "highimpactframe", "lightweightframe", "rapidfireframe"]
+        self.pulse_rifle = WeaponButton(self, image_type = "pulse-rifle", text = "\n\nPulse Rifle", dimensions = (128, 44), list = self.pulse_rifle_archetypes_list)
+        self.scout_rifle_archetypes_list = ["aggressiveframe", "highimpactframe", "lightweightframe", "precisionframe", "rapidfireframe"]
+        self.scout_rifle = WeaponButton(self, image_type = "scout-rifle", text = "\n\nScout Rifle", dimensions = (128, 36), list = self.scout_rifle_archetypes_list)
+        self.sidearm_archetypes_list = ["adaptiveframe", "adaptiveburst", "heavyburst", "lightweightframe", "precisionframe", "rapidfireframe"]
+        self.sidearm = WeaponButton(self, image_type = "sidearm", text = "\nSidearm", dimensions = (85, 63), list = self.sidearm_archetypes_list)
+        self.smg_archetypes_list = ["adaptiveframe", "aggressiveframe", "lightweightframe", "precisionframe"]
+        self.smg = WeaponButton(self, image_type = "smg", text = "\nSubmachine Gun", dimensions = (128, 64), list = self.smg_archetypes_list)
+
+    def place_buttons(self):
+        self.auto_rifle.grid(row = 0, column = 0, sticky = "nsew", padx = 5)
+        self.bow.grid(row = 0, column = 1, sticky = "nsew", padx = 5)
+        self.hand_cannon.grid(row = 0, column = 2, sticky = "nsew", padx = 5)
+        self.pulse_rifle.grid(row = 0, column = 3, sticky = "nsew", padx = 5)
+        self.scout_rifle.grid(row = 0, column = 4, sticky = "nsew", padx = 5)
+        self.sidearm.grid(row = 0, column = 5, sticky = "nsew", padx = 5)
+        self.smg.grid(row = 0, column = 6, sticky = "nsew", padx = 5)
+        
+    def toggle_state(self, button):
+        if self.active_test_button:
+            if self.active_test_button == button:
+                button.configure(border_width = 0)
+                button.archetypes.place_forget()
+                self.active_test_button = None
+            else:
+                self.active_test_button.configure(border_width = 0)
+                self.active_test_button.archetypes.place_forget()
+                button.configure(border_width = 2)
+                button.archetypes.place(relx = 0.5, rely = 0.45, relwidth = 0.6, relheight = 0.17, anchor = "center")
+                self.active_test_button = button
+        else:
+            button.configure(border_width = 2)
+            button.archetypes.place(relx = 0.5, rely = 0.45, relwidth = 0.6, relheight = 0.17, anchor = "center")
+            self.active_test_button = button
+            
+class ArchetypeSelect(ctk.CTkFrame):
+    def __init__(self, master, list, weapon_name, **kwargs):
+        self.master = master
+        self.list = list
+        self.weapon_name = weapon_name
+        super().__init__(self.master, **kwargs)
+        self.create_buttons()
+    def create_buttons(self):
+        for item in self.list:
+            text, image = self.master.archetype_display[item]
+            button = ArchetypeButton(self, text = text, image = image, name = item + self.weapon_name)
+            button.pack(side = "left", expand = True, fill = "both", padx = 5)
+    
+class WeaponButton(ctk.CTkButton):
+    def __init__(self, master, image_type, dimensions, list, **kwargs):
+        self.master = master
+        self.name = image_type.replace("-", "")
+        self.image = ctk.CTkImage(light_image = Image.open(f"destiny2icons/blackicons/{image_type}-black.png"),
+                                  dark_image = Image.open(f"destiny2icons/whiteicons/{image_type}-white.png"), size = dimensions)
+        self.archetypes = ArchetypeSelect(self.master.master, list = list, weapon_name = self.name)
+        super().__init__(self.master, image = self.image, compound = "top", font = ("Roboto", 16), command = lambda: master.toggle_state(self), **kwargs)
+
+class ArchetypeButton(ctk.CTkButton):
+    def __init__(self, master, name, **kwargs):
+        self.master = master
+        self.name = name
+        super().__init__(self.master, font = ("Roboto", 14), compound = "top", width = 110, command = lambda: self.master.master.select_archetype(self), **kwargs)
+
+class BuffBar(ctk.CTkFrame):
+    def __init__(self, master, **kwargs):
+        self.master = master
+        self.num_of_multi = 0
+
+        super().__init__(self.master, **kwargs)
+        self.columnconfigure(tuple(range(3)), weight = 1, uniform = "a")
+        self.rowconfigure(0, weight = 1, uniform = "a")
+        self.place(relx = 0.5, rely = 0.6, relwidth = 0.8, relheight = 0.1, anchor = "center")
+
+        self.create_pi_section()
+        self.create_surge_section()
+        self.create_add_multi_section()
+
+    def create_pi_section(self):
+        self.pi_section = ctk.CTkFrame(self)
+        self.pi_section.grid(row = 0, column = 0, sticky = "nsew")
+        self.pi_section.columnconfigure(0, weight = 5, uniform = "a")
+        self.pi_section.columnconfigure(1, weight = 3, uniform = "a")
+        self.pi_section.rowconfigure(0, weight = 1, uniform = "a")
+
+        self.pi_checkbox = ctk.CTkCheckBox(self.pi_section, text = "Precision Instrument", font = ("Roboto", 18), command = self.show_epi, variable = self.master.pi_num)
+        self.pi_checkbox.grid(row = 0, column = 0)
+        self.epi_switch = ctk.CTkSwitch(self.pi_section, text = "Enhanced", font = ("Roboto", 18), variable = self.master.epi_num)
+
+    def show_epi(self):
+        if self.master.pi_num.get():
+            self.epi_switch.grid(row = 0, column = 1)
+        else:
+            self.epi_switch.grid_forget()
+
+    def create_surge_section(self):
+        self.surge_section = ctk.CTkFrame(self)
+        self.surge_section.grid(row = 0, column = 1, sticky = "nsew")
+        self.surge_section.columnconfigure(tuple(range(7)), weight = 1, uniform = "a")
+        self.surge_section.rowconfigure(tuple(range(6)), weight = 1, uniform = "a")
+
+        self.surge_title = ctk.CTkLabel(self.surge_section, text = "Surges", font = ("Roboto", 18))
+        self.surge_title.grid(row = 0, column = 0, columnspan = 2, rowspan = 3, sticky = "s")
+        self.surge_slider = ctk.CTkSlider(self.surge_section, from_= 0, to = 4, number_of_steps = 4, variable = self.master.surges,
+                                           command = lambda x: self.surge_val.configure(text = f"{int(x)}"))
+        self.surge_slider.grid(row = 0, column = 2, columnspan = 5, rowspan = 4, sticky = "we", padx = 20)
+        self.surge_val = ctk.CTkLabel(self.surge_section, text = "0", font = ("Roboto", 18))
+        self.surge_val.grid(row = 3, column = 0, columnspan = 2, rowspan = 3, sticky = "n")
+
+        for x in range(5):
+            label = ctk.CTkLabel(self.surge_section, text = f"{x}", font = ("Roboto", 14))
+            label.grid(row = 5, column = x + 2, rowspan = 2, sticky = "n")
+
+    def create_add_multi_section(self):
+        self.add_multi_section = ctk.CTkFrame(self)
+        self.add_multi_section.grid(row = 0, column = 2, sticky = "nsew")
+        self.add_multi_section.columnconfigure((0,1), weight = 1, uniform = "a")
+        self.add_multi_section.rowconfigure((0), weight = 1, uniform = "a")
+
+        self.add_multi_text = ctk.CTkLabel(self.add_multi_section, text = "Add an Extra Buff ?", font = ("Roboto", 18))
+        self.add_multi_text.grid(row = 0, column = 0)
+        self.add_multi_button = ctk.CTkButton(self.add_multi_section, text = "Add Multiplier", font = ("Roboto", 14), command = self.add_multi)
+        self.add_multi_button.grid(row = 0, column = 1)
+
+        self.extra_multi_section = ctk.CTkFrame(self.master)
+        self.extra_multi_section.place(relx = 0.5, rely = 0.7, relwidth = 0.8, relheight = 0.1, anchor = "center")
+        self.extra_multi_section.columnconfigure(tuple(range(7)), weight = 1, uniform = "a")
+        self.extra_multi_section.rowconfigure(0, weight = 1, uniform = "a")
+
+        for i in range(7):
+            multi = ExtraMultiplier(self.extra_multi_section, parent = self, num = i)
+            self.master.multipliers.append(multi)
 
 
-# layer 3
-layer3_frame = ctk.CTkFrame(window)
-layer3_frame.place(relx = 0.5, rely = 0.6, relwidth = 0.8, relheight = 0.1, anchor = "center")
-layer3_frame.columnconfigure((0,1,2), weight = 1, uniform = "a")
-layer3_frame.rowconfigure(0, weight = 1, uniform = "a")
-# layer 3 section 1
-layer3_subframe1 = ctk.CTkFrame(layer3_frame)
-layer3_subframe1.grid(row = 0, column = 0, sticky = "nsew")
-layer3_subframe1.columnconfigure(0, weight = 5, uniform = "a")
-layer3_subframe1.columnconfigure(1, weight = 3, uniform = "a")
-layer3_subframe1.rowconfigure(0, weight = 1, uniform = "a")
-def show_epi():
-    if pi_num.get():
-        epi_switch.grid(row = 0, column = 1)
-    else:
-        epi_switch.grid_forget()
+    def add_multi(self):
+        if not self.num_of_multi > 6:
+            self.master.multipliers[self.num_of_multi].grid(row = 0, column = self.num_of_multi, sticky = "nsew")
+            self.num_of_multi += 1
 
-pi_num = ctk.IntVar(value = 0)
-epi_num = ctk.IntVar(value = 0)
-pi_checkbox = ctk.CTkCheckBox(layer3_subframe1, text = "Precision Instrument", font = ("Roboto", 18), command = show_epi, variable = pi_num)
-pi_checkbox.grid(row = 0, column = 0)
-epi_switch = ctk.CTkSwitch(layer3_subframe1, text = "Enhanced", font = ("Roboto", 18), variable = epi_num)
+    def remove_multi(self, num):
+        self.num_of_multi -= 1
+        for i in range(num, self.num_of_multi):
+            self.master.multipliers[i].entry.set(self.master.multipliers[i+1].entry.get())
+        self.master.multipliers[self.num_of_multi].entry.set("1.0")
+        self.master.multipliers[self.num_of_multi].grid_forget()
 
-# layer 3 section 2
-layer3_subframe2 = ctk.CTkFrame(layer3_frame)
-layer3_subframe2.grid(row = 0, column = 1, sticky = "nsew")
-layer3_subframe2.columnconfigure((0,1,2,3,4,5,6), weight = 1, uniform = "a")
-layer3_subframe2.rowconfigure((0,1,2,3,4,5), weight = 1, uniform = "a")
-surge_title = ctk.CTkLabel(layer3_subframe2, text = "Surges", font = ("Roboto", 18))
-surge_title.grid(row = 0, column = 0, columnspan = 2, rowspan = 3, sticky = "s")
-surge_var = ctk.IntVar(value = 0)
-surge_slider = ctk.CTkSlider(layer3_subframe2, from_= 0, to = 4, number_of_steps = 4, variable = surge_var, command = lambda x: surge_val.configure(text = f"{int(x)}"))
-surge_slider.grid(row = 0, column = 2, columnspan = 5, rowspan = 4, sticky = "we", padx = 20)
-surge_val = ctk.CTkLabel(layer3_subframe2, text = "0", font = ("Roboto", 18))
-surge_val.grid(row = 3, column = 0, columnspan = 2, rowspan = 3, sticky = "n")
-surge_label0 = ctk.CTkLabel(layer3_subframe2, text = "0", font = ("Roboto", 14))
-surge_label0.grid(row = 5, column = 2, rowspan = 2, sticky = "n")
-surge_label1 = ctk.CTkLabel(layer3_subframe2, text = "1", font = ("Roboto", 14))
-surge_label1.grid(row = 5, column = 3, rowspan = 2, sticky = "n")
-surge_label2 = ctk.CTkLabel(layer3_subframe2, text = "2", font = ("Roboto", 14))
-surge_label2.grid(row = 5, column = 4, rowspan = 2, sticky = "n")
-surge_label3 = ctk.CTkLabel(layer3_subframe2, text = "3", font = ("Roboto", 14))
-surge_label3.grid(row = 5, column = 5, rowspan = 2, sticky = "n")
-surge_label4 = ctk.CTkLabel(layer3_subframe2, text = "4", font = ("Roboto", 14))
-surge_label4.grid(row = 5, column = 6, rowspan = 2, sticky = "n")
-# layer 3 section 3
-num_of_multi = 0
-def remove_multi_func(num):
-    global num_of_multi
-    num_of_multi -= 1
-    for i in range(num, num_of_multi):
-        multi_entries[i].set(multi_entries[i+1].get())
-    multi_entries[num_of_multi].set("1.0")
-    layer4_subframes[num_of_multi].grid_forget()
+class ExtraMultiplier(ctk.CTkFrame):
+    def __init__(self, master, parent, num, **kwargs):
+        self.master = master
+        self.parent = parent
+        super().__init__(self.master, **kwargs)
+        self.columnconfigure(0, weight = 7, uniform = "a")
+        self.columnconfigure(1, weight = 2, uniform = "a")
+        self.rowconfigure(0, weight = 1, uniform = "a")
 
-def add_multi_func():
-    global num_of_multi
-    if not num_of_multi > 6:
-        layer4_subframes[num_of_multi].grid(row = 0, column = num_of_multi, sticky = "nsew")
-        num_of_multi += 1
-layer3_subframe3 = ctk.CTkFrame(layer3_frame)
-layer3_subframe3.grid(row = 0, column = 2, sticky = "nsew")
-layer3_subframe3.columnconfigure((0,1), weight = 1, uniform = "a")
-layer3_subframe3.rowconfigure((0,), weight = 1, uniform = "a")
-add_multi_text = ctk.CTkLabel(layer3_subframe3, text = "Add an Extra Buff ?", font = ("Roboto", 18))
-add_multi_text.grid(row = 0, column = 0)
-add_multi_button = ctk.CTkButton(layer3_subframe3, text = "Add Multiplier", font = ("Roboto", 14), command = add_multi_func)
-add_multi_button.grid(row = 0, column = 1)
-# layer 4
+        self.entry = Float_Only_Entry(self, justify = "center")
+        self.entry.grid(row = 0, column = 0, sticky = "ew", padx = 1)
+
+        self.button = ctk.CTkButton(self, text = "X", command = lambda: self.parent.remove_multi(num))
+        self.button.grid(row = 0, column = 1, padx = 1)
+
 class Float_Only_Entry(ctk.CTkEntry):
     def __init__(self, master=None, **kwargs):
         self.var = ctk.StringVar(value = "1.0")
@@ -305,29 +631,5 @@ class Float_Only_Entry(ctk.CTkEntry):
             if not self.get() == "":
                 self.set(self.old_value)
 
-layer4_frame = ctk.CTkFrame(window)
-layer4_frame.place(relx = 0.5, rely = 0.7, relwidth = 0.8, relheight = 0.1, anchor = "center")
-layer4_frame.columnconfigure(tuple(range(7)), weight = 1, uniform = "a")
-layer4_frame.rowconfigure(0, weight = 1, uniform = "a")
-layer4_subframes = []
-multi_entries = []
-for i in range(7):
-    subframe = ctk.CTkFrame(layer4_frame)
-    subframe.columnconfigure(0, weight = 7, uniform = "a")
-    subframe.columnconfigure(1, weight = 2, uniform = "a")
-    subframe.rowconfigure(0, weight = 1, uniform = "a")
-    layer4_subframes.append(subframe)
-
-    entry = Float_Only_Entry(subframe, justify = "center")
-    button = ctk.CTkButton(subframe, text = "X", command = lambda x = i: remove_multi_func(x))
-    entry.grid(row = 0, column = 0, sticky = "ew", padx = 1)
-    button.grid(row = 0, column = 1, padx = 1)
-
-    multi_entries.append(entry)
-#layer 5
-calc_button = ctk.CTkButton(window, text = "Calculate", font = ("Roboto", 18), command = calculate)
-calc_button.place(relx = 0.5, rely = 0.825, relwidth = 0.4, relheight = 0.05, anchor = "center")
-result_text = ctk.CTkLabel(window, text = "", font = ("Roboto", 24))
-result_text.place(relx = 0.5, rely = 0.925, anchor = "center")
-# run
-window.mainloop()
+    
+App("D2 TTK Calculator", (1280, 720))
